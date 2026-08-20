@@ -32,7 +32,7 @@ jobs:
           cache: maven
 
       - name: install depences needed using pom file
-        uses: mvn dependency:resolve
+        run: mvn dependency:resolve
 
       - name: Trivy Installation
         run: |
