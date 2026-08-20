@@ -1,79 +1,69 @@
 name: java cli
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: java install
+      - name: Set up Java
         uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: run maven
-        run: mvn compile 
+
+      - name: Compile project
+        run: mvn compile
 
   security-check:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: java install
+
+      - name: Set up Java
         uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
 
-      - name: install depences needed using pom file
+      - name: Resolve Maven dependencies
         run: mvn dependency:resolve
 
-      - name: Trivy Installation
+      - name: Install Trivy
         run: |
           sudo apt-get update
           sudo apt-get install -y wget gnupg
-
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
-          gpg --dearmor | \
-          sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | \
-          sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
-
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y trivy
 
-      # Run Trivy vulnerability scan on filesystem
-      - name: Trivy Fs Scan
-        run: trivy fs --scanners vuln --format json -o fs-report.json /path/to/project 
+      - name: Run Trivy vulnerability scan
+        run: trivy fs --scanners vuln --exit-code 1 --severity HIGH,CRITICAL --format json -o fs-report.json .
 
-        # Upload Trivy report as artifact
       - name: Upload Trivy Report
         uses: actions/upload-artifact@v4
         with:
           name: trivy-fs-report
-          path: fs-report.json   
+          path: fs-report.json
 
-      # Install Gitleaks
-      - name: Gitleaks Installation
+      - name: Install Gitleaks
         run: sudo apt-get install -y gitleaks
 
-      # Run Gitleaks secret scan
-      - name: Gitleaks Code Scan
-        run: gitleaks detect --source . --report-path gitleaks-report.json --report-format json
+      - name: Run Gitleaks secret scan
+        run: gitleaks detect --source . --report-path gitleaks-report.json --report-format json --exit-code 1
 
-      # Upload Gitleaks report as artifact
       - name: Upload Gitleaks Report
         uses: actions/upload-artifact@v4
         with:
           name: gitleaks-report
           path: gitleaks-report.json
-          
-
-             
