@@ -17,5 +17,63 @@ jobs:
           distribution: 'temurin'
           cache: maven
       - name: run maven
-        run: mvn compile    
+        run: mvn compile 
+
+  security-check:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+      - name: java install
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: install depences needed using pom file
+        uses: mvn dependency:resolve
+
+      - name: Trivy Installation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
+          gpg --dearmor | \
+          sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | \
+          sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
+
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      # Run Trivy vulnerability scan on filesystem
+      - name: Trivy Fs Scan
+        run: trivy fs --scanners vuln --format json -o fs-report.json    
+
+        # Upload Trivy report as artifact
+      - name: Upload Trivy Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-report
+          path: fs-report.json   
+
+      # Install Gitleaks
+      - name: Gitleaks Installation
+        run: sudo apt-get install -y gitleaks
+
+      # Run Gitleaks secret scan
+      - name: Gitleaks Code Scan
+        run: gitleaks detect --source . --report-path gitleaks-report.json --report-format json
+
+      # Upload Gitleaks report as artifact
+      - name: Upload Gitleaks Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          
+
              
